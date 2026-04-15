@@ -1,0 +1,17 @@
+# Rust
+/target/
+Cargo.lock
+
+# Coverage
+/coverage/
+*.profraw
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store
+
+# Environment overrides
+.mise.local.toml
+.env
