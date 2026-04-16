@@ -45,6 +45,7 @@ fmt:
 coverage:
     #!/usr/bin/env bash
     set -euo pipefail
+    rm -f coverage-*.profraw
     CARGO_INCREMENTAL=0 \
     RUSTFLAGS='-Cinstrument-coverage' \
     LLVM_PROFILE_FILE='coverage-%p-%m.profraw' \
