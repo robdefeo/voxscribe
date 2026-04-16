@@ -11,9 +11,10 @@ pub struct Args {
     /// Audio or video file to transcribe (mp3, wav, m4a, mp4, ogg, flac)
     pub input: PathBuf,
 
-    /// Whisper model size (e.g. tiny, base, small, medium, large).
-    /// Downloaded from HuggingFace on first use; cached locally for offline use thereafter.
-    #[arg(long, default_value = "large")]
+    /// Whisper model to use. Downloaded from HuggingFace on first use; cached locally thereafter.
+    /// Recommended: large-v3-turbo (best speed/accuracy balance for most audio),
+    /// large-v3 (maximum accuracy, ~2x slower), medium or small (faster, less accurate).
+    #[arg(long, default_value = "large-v3-turbo")]
     pub model: String,
 
     /// Output file path (defaults to stdout)

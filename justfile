@@ -9,38 +9,38 @@ install:
 build:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo build
+    mise exec -- cargo build
 
 release:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo build --release
+    mise exec -- cargo build --release
 
 run *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo run -- {{args}}
+    mise exec -- cargo run -- {{args}}
 
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo watch -x run
+    mise exec -- cargo watch -x run
 
 test:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo test
+    mise exec -- cargo test
 
 lint:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo fmt -- --config-path .config --check
-    cargo clippy -- -D warnings
+    mise exec -- cargo fmt -- --config-path .config --check
+    mise exec -- cargo clippy -- -D warnings
 
 fmt:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo fmt -- --config-path .config
+    mise exec -- cargo fmt -- --config-path .config
 
 coverage:
     #!/usr/bin/env bash
@@ -49,9 +49,9 @@ coverage:
     CARGO_INCREMENTAL=0 \
     RUSTFLAGS='-Cinstrument-coverage' \
     LLVM_PROFILE_FILE='coverage-%p-%m.profraw' \
-    cargo test
+    mise exec -- cargo test
     mkdir -p coverage
-    grcov . --binary-path ./target/debug/ -s . -t html,lcov \
+    mise exec -- grcov . --binary-path ./target/debug/ -s . -t html,lcov \
       --branch --ignore-not-existing \
       --keep-only 'src/*' \
       --excl-line '^\s*$|^\s*//|#\[derive\(|grcov-excl-line' \
@@ -64,5 +64,5 @@ coverage:
 clean:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo clean
+    mise exec -- cargo clean
     rm -rf coverage
