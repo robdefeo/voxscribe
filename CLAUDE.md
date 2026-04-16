@@ -41,7 +41,7 @@ just build              # build all crates
 just test               # cargo test + bun test
 just lint               # cargo fmt --check + cargo clippy -- -D warnings + biome check
 just fmt                # cargo fmt + biome format --write
-just coverage-check     # grcov coverage check
+just coverage           # grcov coverage report + threshold check
 ```
 
 ## Code Style

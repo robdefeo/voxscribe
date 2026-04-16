@@ -33,6 +33,7 @@ fn validate(input: &Path) -> Result<()> {
     Ok(())
 }
 
+// grcov-excl-start: real ffmpeg invocation requires integration tests or an injected command seam
 fn convert_and_read(input: &Path) -> Result<Vec<f32>> {
     // Write converted audio to a named temp file that lives long enough to read
     let tmp = NamedTempFile::new().context("failed to create temp file")?;
@@ -67,6 +68,7 @@ fn convert_and_read(input: &Path) -> Result<Vec<f32>> {
 
     read_wav_as_f32(&tmp_path)
 }
+// grcov-excl-stop
 
 fn read_wav_as_f32(path: &Path) -> Result<Vec<f32>> {
     let mut reader = hound::WavReader::open(path).context("failed to open converted WAV")?;
@@ -87,6 +89,7 @@ fn read_wav_as_f32(path: &Path) -> Result<Vec<f32>> {
     Ok(samples)
 }
 
+// grcov-excl-start: exclude inline unit tests from production coverage
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,3 +121,4 @@ mod tests {
         }
     }
 }
+// grcov-excl-stop

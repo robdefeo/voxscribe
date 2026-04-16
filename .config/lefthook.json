@@ -18,8 +18,8 @@
   },
   "pre-push": {
     "commands": {
-      "coverage-check": {
-        "run": "just coverage-check"
+      "coverage": {
+        "run": "just coverage"
       }
     }
   }
