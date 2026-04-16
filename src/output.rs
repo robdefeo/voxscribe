@@ -87,6 +87,7 @@ fn ms_to_srt_timestamp(ms: i64) -> String {
     format!("{h:02}:{m:02}:{s:02},{millis:03}")
 }
 
+// grcov-excl-start: exclude inline unit tests from production coverage
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,3 +139,4 @@ mod tests {
         assert_eq!(ms_to_hms(59_999), "00:00:59");
     }
 }
+// grcov-excl-stop

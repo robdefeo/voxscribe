@@ -21,6 +21,7 @@ pub struct TranscribeOptions<'a> {
     pub word_timestamps: bool,
 }
 
+// grcov-excl-start: real whisper model loading requires integration tests or an injected context seam
 pub fn transcribe(samples: &[f32], opts: TranscribeOptions<'_>) -> Result<Vec<Segment>> {
     let model_file = resolve_model_path(opts.model, opts.model_path)?;
 
@@ -82,6 +83,7 @@ pub fn transcribe(samples: &[f32], opts: TranscribeOptions<'_>) -> Result<Vec<Se
 
     Ok(segments)
 }
+// grcov-excl-stop
 
 fn resolve_model_path(model: &str, override_path: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = override_path {
@@ -108,6 +110,7 @@ fn resolve_model_path(model: &str, override_path: Option<&Path>) -> Result<PathB
     }
 }
 
+// grcov-excl-start: exclude inline unit tests from production coverage
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,3 +130,4 @@ mod tests {
         assert!(err.to_string().contains("Model file not found"));
     }
 }
+// grcov-excl-stop
