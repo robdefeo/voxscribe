@@ -19,7 +19,7 @@ indicatif = "0.17"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tempfile = "3"
-dirs = "5"
+hf-hub = "0.3"
 
 [profile.dev]
 opt-level = 0

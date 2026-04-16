@@ -23,16 +23,19 @@ pub struct TranscribeOptions<'a> {
 
 // grcov-excl-start: real whisper model loading requires integration tests or an injected context seam
 pub fn transcribe(samples: &[f32], opts: TranscribeOptions<'_>) -> Result<Vec<Segment>> {
-    let model_file = resolve_model_path(opts.model, opts.model_path)?;
-
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
             .template("{spinner:.cyan} {msg}")
             .unwrap(),
     );
-    spinner.set_message(format!("Loading model {}…", opts.model));
+    spinner.set_message(format!("Downloading model {}…", opts.model));
     spinner.enable_steady_tick(std::time::Duration::from_millis(80));
+
+    let model_file = resolve_model_path(opts.model, opts.model_path)
+        .inspect_err(|_| spinner.finish_and_clear())?;
+
+    spinner.set_message(format!("Loading model {}…", opts.model));
 
     let ctx = WhisperContext::new_with_params(&model_file, WhisperContextParameters::default())
         .map_err(|e| AppError::TranscriptionFailed(e.to_string()))?;
@@ -87,27 +90,26 @@ pub fn transcribe(samples: &[f32], opts: TranscribeOptions<'_>) -> Result<Vec<Se
 
 fn resolve_model_path(model: &str, override_path: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = override_path {
-        if p.exists() {
-            return Ok(p.to_path_buf());
-        }
-        return Err(AppError::ModelNotFound {
-            path: p.to_path_buf(),
-        }
-        .into());
+        return if p.exists() {
+            Ok(p.to_path_buf())
+        } else {
+            Err(AppError::ModelNotFound {
+                path: p.to_path_buf(),
+            }
+            .into())
+        };
     }
 
-    let default_dir = dirs::data_local_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("voxscribe")
-        .join("models");
-
-    let path = default_dir.join(format!("ggml-{model}.bin"));
-
-    if path.exists() {
-        Ok(path)
-    } else {
-        Err(AppError::ModelNotFound { path }.into())
-    }
+    // HF Hub cache — fetches from ggerganov/whisper.cpp if not already cached.
+    // Downloads to ~/.cache/huggingface/hub (shared with other HF-aware tools).
+    // Respects HF_HUB_CACHE and HF_HOME env vars.
+    let filename = format!("ggml-{model}.bin");
+    let path = hf_hub::api::sync::Api::new()
+        .map_err(|e| AppError::ModelDownloadFailed(e.to_string()))?
+        .model("ggerganov/whisper.cpp".to_string())
+        .get(&filename)
+        .map_err(|e| AppError::ModelDownloadFailed(e.to_string()))?;
+    Ok(path)
 }
 
 // grcov-excl-start: exclude inline unit tests from production coverage
@@ -128,6 +130,27 @@ mod tests {
         let path = PathBuf::from("/nonexistent/model.bin");
         let err = resolve_model_path("large", Some(&path)).unwrap_err();
         assert!(err.to_string().contains("Model file not found"));
+    }
+
+    #[test]
+    fn resolve_model_path_hf_cache_miss_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Point HF Hub at an empty temp dir and redirect the endpoint to an
+        // unreachable local address so no real network I/O occurs.
+        unsafe {
+            std::env::set_var("HF_HUB_CACHE", tmp.path());
+            std::env::set_var("HF_ENDPOINT", "http://127.0.0.1:0");
+        }
+        let result = resolve_model_path("large", None);
+        unsafe {
+            std::env::remove_var("HF_ENDPOINT");
+            std::env::remove_var("HF_HUB_CACHE");
+        }
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("Failed to download model"),
+            "unexpected error: {err}"
+        );
     }
 }
 // grcov-excl-stop

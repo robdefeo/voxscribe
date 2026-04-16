@@ -21,6 +21,9 @@ pub enum AppError {
     )]
     ModelNotFound { path: PathBuf },
 
+    #[error("Failed to download model: {0}\nCheck your network connection or use --model-path to specify a local file")]
+    ModelDownloadFailed(String),
+
     #[error("Transcription error: {0}")]
     TranscriptionFailed(String),
 

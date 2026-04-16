@@ -5,13 +5,14 @@ use clap::{Parser, ValueEnum};
 #[derive(Parser, Debug)]
 #[command(
     name = "voxscribe",
-    about = "Offline audio transcription using local Whisper models"
+    about = "Audio transcription using Whisper models. First run downloads the selected model; subsequent runs work fully offline."
 )]
 pub struct Args {
     /// Audio or video file to transcribe (mp3, wav, m4a, mp4, ogg, flac)
     pub input: PathBuf,
 
-    /// Whisper model size to use
+    /// Whisper model size (e.g. tiny, base, small, medium, large).
+    /// Downloaded from HuggingFace on first use; cached locally for offline use thereafter.
     #[arg(long, default_value = "large")]
     pub model: String,
 
@@ -43,7 +44,7 @@ pub struct Args {
     #[arg(long)]
     pub language: Option<String>,
 
-    /// Override path to model file (default: ~/.local/share/voxscribe/models/ggml-<model>.bin)
+    /// Override path to model file instead of using the HuggingFace cache
     #[arg(long)]
     pub model_path: Option<PathBuf>,
 }
