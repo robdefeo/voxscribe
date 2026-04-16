@@ -52,11 +52,12 @@ coverage:
     mkdir -p coverage
     grcov . --binary-path ./target/debug/ -s . -t html,lcov \
       --branch --ignore-not-existing \
+      --keep-only 'src/*' \
       --excl-line '^\s*$|^\s*//|#\[derive\(|grcov-excl-line' \
       --excl-start 'grcov-excl-start' \
       --excl-stop 'grcov-excl-stop' \
       -o coverage
-    lines=$(lcov --summary coverage/lcov 2>&1 | grep "lines" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    lines=$(lcov --summary coverage/lcov --ignore-errors inconsistent,corrupt 2>&1 | grep "lines" | grep -oE '[0-9]+\.[0-9]+' | head -1)
     awk -v pct="$lines" 'BEGIN { if (pct+0 < 60) { print "Coverage " pct "% is below 60% threshold"; exit 1 } }'
 
 clean:
