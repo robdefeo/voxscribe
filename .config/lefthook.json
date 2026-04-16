@@ -9,17 +9,17 @@
   "pre-commit": {
     "commands": {
       "lint": {
-        "run": "just lint"
+        "run": "mise exec -- just lint"
       },
       "test": {
-        "run": "just test"
+        "run": "mise exec -- just test"
       }
     }
   },
   "pre-push": {
     "commands": {
       "coverage": {
-        "run": "just coverage"
+        "run": "mise exec -- just coverage"
       }
     }
   }
