@@ -40,7 +40,7 @@ pub fn transcribe(samples: &[f32], opts: TranscribeOptions<'_>) -> Result<Vec<Se
     let ctx = WhisperContext::new_with_params(&model_file, WhisperContextParameters::default())
         .map_err(|e| AppError::TranscriptionFailed(e.to_string()))?;
 
-    spinner.set_message("Transcribing…");
+    spinner.set_message("Transcribing… 0% (0s)");
 
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
 
@@ -53,6 +53,13 @@ pub fn transcribe(samples: &[f32], opts: TranscribeOptions<'_>) -> Result<Vec<Se
     }
 
     params.set_token_timestamps(opts.word_timestamps);
+
+    let start = std::time::Instant::now();
+    let progress_spinner = spinner.clone();
+    params.set_progress_callback_safe(move |pct: i32| {
+        let elapsed = start.elapsed().as_secs();
+        progress_spinner.set_message(format!("Transcribing… {pct}% ({elapsed}s)"));
+    });
 
     let mut state = ctx
         .create_state()
