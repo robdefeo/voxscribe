@@ -20,6 +20,7 @@ pub fn format(segments: &[Segment], fmt: &OutputFormat, timestamps: bool) -> Str
         OutputFormat::Txt => format_txt(segments, timestamps),
         OutputFormat::Json => format_json(segments),
         OutputFormat::Srt => format_srt(segments),
+        OutputFormat::Vtt => format_vtt(segments),
     }
 }
 
@@ -68,6 +69,24 @@ fn format_srt(segments: &[Segment]) -> String {
         .join("\n")
 }
 
+fn format_vtt(segments: &[Segment]) -> String {
+    let cues = segments
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            format!(
+                "{}\n{} --> {}\n{}\n",
+                i + 1,
+                ms_to_vtt_timestamp(s.start_ms),
+                ms_to_vtt_timestamp(s.end_ms),
+                s.text,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("WEBVTT\n\n{cues}")
+}
+
 /// Format milliseconds as `HH:MM:SS`
 pub fn ms_to_hms(ms: i64) -> String {
     let total_secs = ms / 1000;
@@ -75,6 +94,16 @@ pub fn ms_to_hms(ms: i64) -> String {
     let m = (total_secs % 3600) / 60;
     let s = total_secs % 60;
     format!("{h:02}:{m:02}:{s:02}")
+}
+
+/// Format milliseconds as `HH:MM:SS.mmm` (WebVTT format)
+fn ms_to_vtt_timestamp(ms: i64) -> String {
+    let total_secs = ms / 1000;
+    let millis = ms % 1000;
+    let h = total_secs / 3600;
+    let m = (total_secs % 3600) / 60;
+    let s = total_secs % 60;
+    format!("{h:02}:{m:02}:{s:02}.{millis:03}")
 }
 
 /// Format milliseconds as `HH:MM:SS,mmm` (SRT format)
@@ -130,6 +159,15 @@ mod tests {
         let out = format(&segs, &OutputFormat::Srt, false);
         assert!(out.contains("1\n00:00:00,000 --> 00:00:01,500"));
         assert!(out.contains("2\n00:00:02,000 --> 00:00:03,500"));
+    }
+
+    #[test]
+    fn vtt_format() {
+        let segs = vec![seg(0, 1500, "Hello"), seg(2000, 3500, "world")];
+        let out = format(&segs, &OutputFormat::Vtt, false);
+        assert!(out.starts_with("WEBVTT\n\n"));
+        assert!(out.contains("1\n00:00:00.000 --> 00:00:01.500"));
+        assert!(out.contains("2\n00:00:02.000 --> 00:00:03.500"));
     }
 
     #[test]
