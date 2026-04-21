@@ -49,14 +49,4 @@ voxscribe audio.m4a --model-path ~/models/ggml-large-v3-turbo.bin
 
 ### Options
 
-```
-      --model <MODEL>            Whisper model [default: large-v3-turbo]
-  -o, --output <OUTPUT>          Output file (defaults to stdout)
-  -f, --format <FORMAT>          Output format: txt, json, srt [default: txt]
-      --timestamps               Include segment-level timestamps
-      --word-timestamps          Include word-level timestamps
-      --language <LANGUAGE>      Force language (e.g. en, de, fr)
-      --prompt <PROMPT>          Context prompt for domain-specific terms
-      --dict <DICT>              JSON correction dictionary {"wrong": "right"}
-      --model-path <MODEL_PATH>  Use a local model file instead of downloading
-```
+Run `voxscribe --help` for the full list of options.
