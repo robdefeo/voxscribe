@@ -60,4 +60,5 @@ pub enum OutputFormat {
     Txt,
     Json,
     Srt,
+    Vtt,
 }
