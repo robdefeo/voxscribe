@@ -8,4 +8,4 @@ just = "1.38.0"
 
 [tools.rust]
 version = "1.93.1"
-postinstall = "rustup component add llvm-tools"
+postinstall = "rustup component add llvm-tools rustfmt clippy"
