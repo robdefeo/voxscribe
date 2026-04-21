@@ -54,16 +54,16 @@ pub fn transcribe(samples: &[f32], opts: TranscribeOptions<'_>) -> Result<Vec<Se
 
     params.set_token_timestamps(opts.word_timestamps);
 
+    let mut state = ctx
+        .create_state()
+        .map_err(|e| AppError::TranscriptionFailed(e.to_string()))?;
+
     let start = std::time::Instant::now();
     let progress_spinner = spinner.clone();
     params.set_progress_callback_safe(move |pct: i32| {
         let elapsed = start.elapsed().as_secs();
         progress_spinner.set_message(format!("Transcribing… {pct}% ({elapsed}s)"));
     });
-
-    let mut state = ctx
-        .create_state()
-        .map_err(|e| AppError::TranscriptionFailed(e.to_string()))?;
 
     state
         .full(params, samples)
