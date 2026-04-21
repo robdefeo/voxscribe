@@ -1,0 +1,32 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.31.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = ["shell", "homebrew"]
+# Target platforms to build apps for (Rust target-triple syntax)
+# Note: aarch64-unknown-linux-gnu excluded — cross-compiling whisper-rs (C/C++) is non-trivial
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+# Path that installers should place binaries in
+install-path = "CARGO_HOME"
+# Whether to install an updater program
+install-updater = false
+# Homebrew tap repository (must exist at https://github.com/robdefeo/homebrew-tap)
+homebrew-tap = "robdefeo/homebrew-tap"
+# Use git-cliff for release notes / changelog generation
+changelog = "git-cliff"
+
+# System packages required at build time (whisper-rs compiles C/C++ and needs CMake)
+[dist.dependencies.homebrew]
+cmake = "*"
+
+[dist.dependencies.apt]
+cmake = "*"
+
+[dist.dependencies.choco]
+cmake = "*"

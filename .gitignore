@@ -12,6 +12,9 @@ node_modules/
 # macOS
 .DS_Store
 
+# Changelog (generated locally via `just changelog`; GitHub Releases are the canonical source)
+CHANGELOG.md
+
 # Environment overrides
 .mise.local.toml
 .env
