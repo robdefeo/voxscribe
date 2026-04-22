@@ -19,28 +19,20 @@ jobs:
             exit 1
           fi
 
-  build:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-      - uses: Swatinem/rust-cache@v2
-      - run: just build
-
   lint:
     runs-on: ubuntu-22.04
-    needs: [build]
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
+      - run: rustup component add rustfmt clippy
       - uses: Swatinem/rust-cache@v2
       - run: just lint
 
   test:
     runs-on: ubuntu-22.04
-    needs: [build]
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
+      - run: rustup component add rustfmt clippy
       - uses: Swatinem/rust-cache@v2
       - run: just test
