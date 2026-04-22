@@ -2,9 +2,10 @@
 bun = "1.2.5"
 cmake = "3.31.7"
 "cargo:cargo-watch" = "8.5.3"
+"cargo:git-cliff" = "2.8.0"
 "cargo:grcov" = "0.10.7"
 just = "1.38.0"
 
 [tools.rust]
 version = "1.93.1"
-postinstall = "rustup component add llvm-tools"
+postinstall = "rustup component add llvm-tools rustfmt clippy"

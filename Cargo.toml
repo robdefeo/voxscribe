@@ -1,7 +1,11 @@
 [package]
 name = "voxscribe"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
+repository = "https://github.com/robdefeo/voxscribe"
+homepage = "https://github.com/robdefeo/voxscribe"
+description = "Offline audio transcription using local Whisper models"
+license = "MIT"
 
 [[bin]]
 name = "voxscribe"
@@ -28,3 +32,8 @@ opt-level = 0
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

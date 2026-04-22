@@ -4,6 +4,27 @@ Offline audio transcription using local [Whisper](https://github.com/ggerganov/w
 
 ## Installation
 
+**macOS / Linux** — shell installer:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/robdefeo/voxscribe/releases/latest/download/voxscribe-installer.sh | sh
+```
+
+**macOS** — Homebrew:
+
+```bash
+brew install robdefeo/tap/voxscribe
+```
+
+**cargo-binstall** (downloads pre-built binary):
+
+```bash
+cargo binstall voxscribe
+```
+
+**Build from source:**
+
+
 ```bash
 mise install
 just build
