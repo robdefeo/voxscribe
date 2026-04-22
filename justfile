@@ -64,7 +64,8 @@ coverage:
 changelog:
     #!/usr/bin/env bash
     set -euo pipefail
-    mise exec -- git-cliff --output CHANGELOG.md
+    version=$(cargo pkgid | sed 's/.*[#@]//')
+    mise exec -- git-cliff --tag "v${version}" --output CHANGELOG.md
 
 clean:
     #!/usr/bin/env bash
