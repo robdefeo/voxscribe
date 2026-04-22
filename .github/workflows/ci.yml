@@ -8,10 +8,9 @@ on:
 jobs:
   version-guard:
     runs-on: ubuntu-22.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-      - name: Verify Cargo.toml version is 0.0.0 on main
+      - name: Verify Cargo.toml version is 0.0.0
         run: |
           VERSION=$(cargo pkgid | sed 's/.*@//')
           if [ "$VERSION" != "0.0.0" ]; then
