@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify Cargo.toml version is 0.0.0
         run: |
-          VERSION=$(cargo pkgid | sed 's/.*@//')
+          VERSION=$(cargo pkgid | sed 's/.*[#@]//')
           if [ "$VERSION" != "0.0.0" ]; then
             echo "error: Cargo.toml version must be 0.0.0 on main (got $VERSION)"
             exit 1
