@@ -1,8 +1,8 @@
 # Releasing
 
-Releases are driven by pushing a version tag from a local release commit. cargo-dist builds binaries for all targets, generates release notes via git-cliff, publishes a GitHub Release, and updates the Homebrew tap automatically.
+Releases are driven by pushing a version tag from a local release commit. cargo-dist builds binaries for all targets, reads release notes from a committed `CHANGELOG.md`, publishes a GitHub Release, and updates the Homebrew tap automatically.
 
-`main` always keeps `version = "0.0.0"` in `Cargo.toml`. This is enforced by a lefthook pre-commit hook and a CI check on push to `main`. Release commits are never merged back to `main` — they are only reachable via their tag.
+`main` always keeps `version = "0.0.0"` in `Cargo.toml` and never contains `CHANGELOG.md`. Both are enforced by lefthook pre-commit hooks. Release commits are never merged back to `main` — they are only reachable via their tag.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ First-time setup only:
 
 ### 1. Create a local release commit
 
-From the latest `main`, create a local branch (never pushed), bump the version, and commit:
+From the latest `main`, create a local branch (never pushed), bump the version, generate the changelog, and commit:
 
 ```bash
 git fetch origin
@@ -23,8 +23,12 @@ git checkout -b release/vx.y.z origin/main
 
 # Edit Cargo.toml: set version = "x.y.z"
 
+mise exec -- just changelog   # generates CHANGELOG.md from commits since last tag
+
 git commit -am "chore: release vx.y.z"
 ```
+
+The pre-commit hook enforces that `CHANGELOG.md` is staged and `Cargo.toml` has a non-zero version on `release/v*` branches.
 
 ### 2. Tag and push the tag only
 
@@ -41,7 +45,7 @@ The release workflow fires on the tag. cargo-dist will:
 
 - Validate that the tag version matches `Cargo.toml` — fails fast if they diverge
 - Build binaries for macOS (arm64, x86_64), Linux (x86_64), and Windows (x86_64)
-- Generate release notes from commits since the last tag using git-cliff
+- Read release notes from `CHANGELOG.md` in the release commit
 - Create a GitHub Release at https://github.com/robdefeo/voxscribe/releases
 - Publish the shell installer and update the Homebrew formula in `robdefeo/homebrew-tap`
 
