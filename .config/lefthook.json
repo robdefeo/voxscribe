@@ -12,7 +12,7 @@
         "run": "branch=$(git rev-parse --abbrev-ref HEAD); case \"$branch\" in release/v*) ;; *) version=$(cargo pkgid | sed 's/.*@//'); if [ \"$version\" != \"0.0.0\" ]; then echo \"error: Cargo.toml version must be 0.0.0 on non-release branches (got $version)\"; exit 1; fi;; esac"
       },
       "changelog-guard": {
-        "run": "branch=$(git rev-parse --abbrev-ref HEAD); case \"$branch\" in release/v*) if ! git diff --cached --name-only | grep -q '^CHANGELOG.md$'; then echo \"error: CHANGELOG.md must be staged on release branches (run: mise exec -- just changelog)\"; exit 1; fi;; *) if git diff --cached --name-only | grep -q '^CHANGELOG.md$'; then echo \"error: CHANGELOG.md must not be committed on non-release branches\"; exit 1; fi;; esac"
+        "run": "branch=$(git rev-parse --abbrev-ref HEAD); case \"$branch\" in release/v*) if git diff --cached --name-only | grep -q '^CHANGELOG.md$'; then :; elif git ls-files --error-unmatch CHANGELOG.md 2>/dev/null && ! git diff --name-only -- CHANGELOG.md | grep -q '^CHANGELOG.md$'; then :; else echo \"error: CHANGELOG.md must be staged on release branches (run: mise exec -- just changelog)\"; exit 1; fi;; *) if git diff --cached --name-only | grep -q '^CHANGELOG.md$'; then echo \"error: CHANGELOG.md must not be committed on non-release branches\"; exit 1; fi;; esac"
       },
       "lint": {
         "run": "mise exec -- just lint"
