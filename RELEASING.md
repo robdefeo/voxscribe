@@ -1,6 +1,8 @@
 # Releasing
 
-Releases are driven by pushing a version tag. cargo-dist builds binaries for all targets, publishes a GitHub Release with changelog notes, and updates the Homebrew tap automatically.
+Releases are driven by pushing a version tag from a local release commit. cargo-dist builds binaries for all targets, generates release notes via git-cliff, publishes a GitHub Release, and updates the Homebrew tap automatically.
+
+`main` always keeps `version = "0.0.0"` in `Cargo.toml`. This is enforced by a lefthook pre-commit hook and a CI check on push to `main`. Release commits are never merged back to `main` — they are only reachable via their tag.
 
 ## Prerequisites
 
@@ -11,37 +13,39 @@ First-time setup only:
 
 ## Steps
 
-### 1. Bump the version
+### 1. Create a local release commit
 
-Edit `Cargo.toml`:
-
-```toml
-version = "x.y.z"
-```
-
-Commit directly to `main`:
+From the latest `main`, create a local branch (never pushed), bump the version, and commit:
 
 ```bash
-git add Cargo.toml
-git commit -m "chore: bump version to x.y.z"
-git push
+git fetch origin
+git checkout -b release/vx.y.z origin/main
+
+# Edit Cargo.toml: set version = "x.y.z"
+
+git commit -am "chore: release vx.y.z"
 ```
 
-### 2. Tag the release
+### 2. Tag and push the tag only
 
 ```bash
 git tag vx.y.z
 git push origin vx.y.z
 ```
 
-This triggers the Release workflow. cargo-dist will:
+Do not push the branch. The release commit is reachable only via the tag.
 
+### 3. What happens next
+
+The release workflow fires on the tag. cargo-dist will:
+
+- Validate that the tag version matches `Cargo.toml` — fails fast if they diverge
 - Build binaries for macOS (arm64, x86_64), Linux (x86_64), and Windows (x86_64)
 - Generate release notes from commits since the last tag using git-cliff
 - Create a GitHub Release at https://github.com/robdefeo/voxscribe/releases
 - Publish the shell installer and update the Homebrew formula in `robdefeo/homebrew-tap`
 
-### 3. Verify
+### 4. Verify
 
 - [ ] GitHub Release created with correct version and changelog
 - [ ] Shell installer works: `curl --proto '=https' --tlsv1.2 -LsSf https://github.com/robdefeo/voxscribe/releases/latest/download/voxscribe-installer.sh | sh`
@@ -65,6 +69,13 @@ git push origin :refs/tags/vx.y.z
 # fix the issue, then re-tag
 git tag vx.y.z
 git push origin vx.y.z
+```
+
+**Tag glob after `dist init`** — `dist init` regenerates `release.yml` with a broken tag glob (`**[0-9]+.[0-9]+.[0-9]+*`). After any `dist init` run, restore the correct pattern:
+
+```yaml
+tags:
+  - 'v[0-9]*.[0-9]*.[0-9]*'
 ```
 
 **Homebrew formula not updated** — cargo-dist pushes to `robdefeo/homebrew-tap` as part of the workflow. If it fails, check that the repo exists and the workflow has write access.

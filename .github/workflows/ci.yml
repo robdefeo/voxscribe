@@ -6,8 +6,30 @@ on:
   pull_request:
 
 jobs:
+  version-guard:
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Cargo.toml version is 0.0.0 on main
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          if [ "$VERSION" != "0.0.0" ]; then
+            echo "error: Cargo.toml version must be 0.0.0 on main (got $VERSION)"
+            exit 1
+          fi
+
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: Swatinem/rust-cache@v2
+      - run: just build
+
   lint:
     runs-on: ubuntu-22.04
+    needs: [build]
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
@@ -16,6 +38,7 @@ jobs:
 
   test:
     runs-on: ubuntu-22.04
+    needs: [build]
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
