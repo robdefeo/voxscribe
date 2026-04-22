@@ -19,8 +19,8 @@ install-updater = false
 pr-run-mode = "skip"
 # Homebrew tap repository (must exist at https://github.com/robdefeo/homebrew-tap)
 homebrew-tap = "robdefeo/homebrew-tap"
-# Use git-cliff for release notes / changelog generation
-changelog = "git-cliff"
+# Read release notes from CHANGELOG.md committed with the release
+changelog = "CHANGELOG.md"
 
 # System packages required at build time (whisper-rs compiles C/C++ and needs CMake)
 [dist.dependencies.homebrew]
