@@ -9,7 +9,7 @@
   "pre-commit": {
     "commands": {
       "version-guard": {
-        "run": "branch=$(git rev-parse --abbrev-ref HEAD); case \"$branch\" in release/v*) ;; *) version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version'); if [ \"$version\" != \"0.0.0\" ]; then echo \"error: Cargo.toml version must be 0.0.0 on non-release branches (got $version)\"; exit 1; fi;; esac"
+        "run": "branch=$(git rev-parse --abbrev-ref HEAD); case \"$branch\" in release/v*) ;; *) version=$(cargo pkgid | sed 's/.*@//'); if [ \"$version\" != \"0.0.0\" ]; then echo \"error: Cargo.toml version must be 0.0.0 on non-release branches (got $version)\"; exit 1; fi;; esac"
       },
       "lint": {
         "run": "mise exec -- just lint"
