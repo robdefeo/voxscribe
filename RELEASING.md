@@ -25,6 +25,7 @@ git checkout -b release/vx.y.z origin/main
 
 mise exec -- just changelog   # generates CHANGELOG.md from commits since last tag
 
+git add -f CHANGELOG.md       # CHANGELOG.md is gitignored on main; force-add for release commit
 git commit -am "chore: release vx.y.z"
 ```
 
