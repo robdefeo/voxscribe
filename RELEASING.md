@@ -71,11 +71,4 @@ git tag vx.y.z
 git push origin vx.y.z
 ```
 
-**Tag glob after `dist init`** — `dist init` regenerates `release.yml` with a broken tag glob (`**[0-9]+.[0-9]+.[0-9]+*`). After any `dist init` run, restore the correct pattern:
-
-```yaml
-tags:
-  - 'v[0-9]*.[0-9]*.[0-9]*'
-```
-
 **Homebrew formula not updated** — cargo-dist pushes to `robdefeo/homebrew-tap` as part of the workflow. If it fails, check that the repo exists and the workflow has write access.
