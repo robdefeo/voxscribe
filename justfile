@@ -64,7 +64,7 @@ coverage:
 changelog:
     #!/usr/bin/env bash
     set -euo pipefail
-    mise exec -- git cliff --output CHANGELOG.md
+    mise exec -- git-cliff --output CHANGELOG.md
 
 clean:
     #!/usr/bin/env bash
