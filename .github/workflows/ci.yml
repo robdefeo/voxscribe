@@ -19,37 +19,19 @@ jobs:
             exit 1
           fi
 
-  build:
+  lint:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - run: rustup component add rustfmt clippy
       - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "ci"
-      - run: just build
-
-  lint:
-    runs-on: ubuntu-22.04
-    needs: [build]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "ci"
-          save-if: "false"
       - run: just lint
 
   test:
     runs-on: ubuntu-22.04
-    needs: [build]
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "ci"
-          save-if: "false"
       - run: just test
