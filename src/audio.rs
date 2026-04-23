@@ -88,6 +88,7 @@ fn decode_to_mono_16k(input: &Path) -> Result<Vec<f32>> {
                     .make(&decoder.codec_params().clone(), &DecoderOptions::default())
                     .map_err(|e| AppError::DecodeFailed(e.to_string()))?;
                 sample_buf = None;
+                spec = None;
                 continue;
             }
             Err(e) => return Err(AppError::DecodeFailed(e.to_string()).into()),
@@ -106,6 +107,9 @@ fn decode_to_mono_16k(input: &Path) -> Result<Vec<f32>> {
                 let sbuf = sample_buf.get_or_insert_with(|| {
                     SampleBuffer::<f32>::new(decoded.capacity() as u64, buf_spec)
                 });
+                if decoded.capacity() > sbuf.capacity() {
+                    *sbuf = SampleBuffer::<f32>::new(decoded.capacity() as u64, buf_spec);
+                }
                 sbuf.copy_interleaved_ref(decoded);
                 interleaved.extend_from_slice(sbuf.samples());
             }
@@ -144,6 +148,12 @@ fn downmix_to_mono(interleaved: &[f32], channels: Channels) -> Vec<f32> {
     let frames = interleaved.len() / channel_count;
     let mut mono = Vec::with_capacity(frames);
 
+    debug_assert_eq!(
+        interleaved.len() % channel_count,
+        0,
+        "interleaved sample count is not a multiple of channel_count"
+    );
+
     if channel_count == 2 {
         for frame in interleaved.chunks_exact(channel_count) {
             mono.push((frame[0] + frame[1]) * 0.5);
@@ -156,7 +166,7 @@ fn downmix_to_mono(interleaved: &[f32], channels: Channels) -> Vec<f32> {
     let weights: Vec<f32> = channels.iter().map(bs775_weight).collect();
     let weight_sum: f32 = weights.iter().sum();
 
-    if weight_sum == 0.0 {
+    if weight_sum < f32::EPSILON {
         // Fallback: no recognised speaker positions — arithmetic mean.
         for frame in interleaved.chunks_exact(channel_count) {
             let sum: f32 = frame.iter().sum();
@@ -339,6 +349,29 @@ mod tests {
 
         let out = load(tmp.path()).unwrap();
         assert!(!out.is_empty(), "sub-chunk input produced no output");
+    }
+
+    #[test]
+    fn downmixes_surround_5_1_to_mono() {
+        // 5.1 layout: FL, FR, FC, LFE, RL, RR (6 channels).
+        // FC has weight 1.0; FL/FR = 0.707; RL/RR = 0.5; LFE = 0.0.
+        // With all channels at 1.0: mixed = 0.707+0.707+1.0+0.0+0.5+0.5 = 3.414,
+        // weight_sum = same → output = 1.0 per frame.
+        let channels = Channels::FRONT_LEFT
+            | Channels::FRONT_RIGHT
+            | Channels::FRONT_CENTRE
+            | Channels::LFE1
+            | Channels::REAR_LEFT
+            | Channels::REAR_RIGHT;
+        let channel_count = channels.count();
+        let frames = 100;
+        let interleaved = vec![1.0f32; frames * channel_count];
+
+        let mono = downmix_to_mono(&interleaved, channels);
+        assert_eq!(mono.len(), frames);
+        for s in &mono {
+            assert!((s - 1.0).abs() < 1e-5, "expected 1.0, got {s}");
+        }
     }
 
     #[test]
