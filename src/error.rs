@@ -8,11 +8,11 @@ pub enum AppError {
     #[error("Unsupported format: {0}. Supported: mp3, wav, m4a, mp4, ogg, flac")]
     UnsupportedFormat(String),
 
-    #[error("ffmpeg not found — install ffmpeg and ensure it is in PATH")]
-    FfmpegNotFound,
+    #[error("Failed to decode audio: {0}")]
+    DecodeFailed(String),
 
-    #[error("ffmpeg conversion failed:\n{0}")]
-    FfmpegFailed(String),
+    #[error("Failed to resample audio: {0}")]
+    ResampleFailed(String),
 
     #[error(
         "Model file not found at {path}\n\
