@@ -21,6 +21,8 @@ pr-run-mode = "skip"
 homebrew-tap = "robdefeo/homebrew-tap"
 # Read release notes from CHANGELOG.md committed with the release
 changelog = "CHANGELOG.md"
+# Allow manual additions to the generated CI file
+allow-dirty = ["ci"]
 
 # System packages required at build time (whisper-rs compiles C/C++ and needs CMake)
 [dist.dependencies.homebrew]
