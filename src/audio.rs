@@ -1,18 +1,26 @@
+use std::fs::File;
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::{Context, Result};
-use tempfile::NamedTempFile;
+use rubato::{FftFixedIn, Resampler};
+use symphonia::core::audio::{Channels, SampleBuffer, SignalSpec};
+use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::errors::Error as SymphoniaError;
+use symphonia::core::formats::FormatOptions;
+use symphonia::core::io::MediaSourceStream;
+use symphonia::core::meta::MetadataOptions;
+use symphonia::core::probe::Hint;
 
 use crate::error::AppError;
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["mp3", "wav", "m4a", "mp4", "ogg", "flac"];
+const TARGET_RATE: u32 = 16_000;
+const RESAMPLE_CHUNK: usize = 1024;
 
 /// Validate the input file and convert it to 16kHz mono f32 PCM samples.
 pub fn load(input: &Path) -> Result<Vec<f32>> {
     validate(input)?;
-    let pcm = convert_and_read(input)?;
-    Ok(pcm)
+    decode_to_mono_16k(input)
 }
 
 fn validate(input: &Path) -> Result<()> {
@@ -33,67 +41,194 @@ fn validate(input: &Path) -> Result<()> {
     Ok(())
 }
 
-// grcov-excl-start: real ffmpeg invocation requires integration tests or an injected command seam
-fn convert_and_read(input: &Path) -> Result<Vec<f32>> {
-    // Write converted audio to a named temp file that lives long enough to read
-    let tmp = NamedTempFile::new().context("failed to create temp file")?;
-    let tmp_path = tmp.path().with_extension("wav");
+fn decode_to_mono_16k(input: &Path) -> Result<Vec<f32>> {
+    let file = File::open(input).context("failed to open input file")?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
-    let status = Command::new("ffmpeg")
-        .args([
-            "-i",
-            input.to_str().unwrap_or_default(),
-            "-ar",
-            "16000",
-            "-ac",
-            "1",
-            "-f",
-            "wav",
-            "-y", // overwrite without prompting
-            tmp_path.to_str().unwrap_or_default(),
-        ])
-        .output()
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                AppError::FfmpegNotFound
-            } else {
-                AppError::FfmpegFailed(e.to_string())
-            }
-        })?;
-
-    if !status.status.success() {
-        let stderr = String::from_utf8_lossy(&status.stderr).to_string();
-        return Err(AppError::FfmpegFailed(stderr).into());
+    let mut hint = Hint::new();
+    if let Some(ext) = input.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(ext);
     }
 
-    read_wav_as_f32(&tmp_path)
+    let probed = symphonia::default::get_probe()
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
+        .map_err(|e| AppError::DecodeFailed(e.to_string()))?;
+
+    let mut format = probed.format;
+    let track = format
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+        .ok_or_else(|| AppError::DecodeFailed("no decodable audio track".into()))?;
+    let track_id = track.id;
+
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&track.codec_params, &DecoderOptions::default())
+        .map_err(|e| AppError::DecodeFailed(e.to_string()))?;
+
+    let mut interleaved: Vec<f32> = Vec::new();
+    let mut spec: Option<SignalSpec> = None;
+    let mut sample_buf: Option<SampleBuffer<f32>> = None;
+
+    loop {
+        let packet = match format.next_packet() {
+            Ok(p) => p,
+            Err(SymphoniaError::IoError(ref e))
+                if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break;
+            }
+            Err(SymphoniaError::ResetRequired) => {
+                decoder = symphonia::default::get_codecs()
+                    .make(&decoder.codec_params().clone(), &DecoderOptions::default())
+                    .map_err(|e| AppError::DecodeFailed(e.to_string()))?;
+                sample_buf = None;
+                continue;
+            }
+            Err(e) => return Err(AppError::DecodeFailed(e.to_string()).into()),
+        };
+
+        if packet.track_id() != track_id {
+            continue;
+        }
+
+        match decoder.decode(&packet) {
+            Ok(decoded) => {
+                let buf_spec = *decoded.spec();
+                if spec.is_none() {
+                    spec = Some(buf_spec);
+                }
+                let sbuf = sample_buf.get_or_insert_with(|| {
+                    SampleBuffer::<f32>::new(decoded.capacity() as u64, buf_spec)
+                });
+                sbuf.copy_interleaved_ref(decoded);
+                interleaved.extend_from_slice(sbuf.samples());
+            }
+            Err(SymphoniaError::DecodeError(_)) => continue,
+            Err(SymphoniaError::IoError(ref e))
+                if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break;
+            }
+            Err(e) => return Err(AppError::DecodeFailed(e.to_string()).into()),
+        }
+    }
+
+    let spec = spec.ok_or_else(|| AppError::DecodeFailed("no audio frames decoded".into()))?;
+    if interleaved.is_empty() {
+        return Err(AppError::DecodeFailed("no audio frames decoded".into()).into());
+    }
+
+    let channels = spec.channels;
+    let channel_count = channels.count();
+    let mono = downmix_to_mono(&interleaved, channels);
+
+    if spec.rate == TARGET_RATE && channel_count == 1 {
+        return Ok(mono);
+    }
+
+    resample_to_target(&mono, spec.rate)
 }
-// grcov-excl-stop
 
-fn read_wav_as_f32(path: &Path) -> Result<Vec<f32>> {
-    let mut reader = hound::WavReader::open(path).context("failed to open converted WAV")?;
-    let spec = reader.spec();
+fn downmix_to_mono(interleaved: &[f32], channels: Channels) -> Vec<f32> {
+    let channel_count = channels.count();
+    if channel_count <= 1 {
+        return interleaved.to_vec();
+    }
 
-    let samples: Vec<f32> = match spec.sample_format {
-        hound::SampleFormat::Float => reader
-            .samples::<f32>()
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .context("failed to read f32 WAV samples")?,
-        hound::SampleFormat::Int => reader
-            .samples::<i16>()
-            .map(|s| s.map(|v| v as f32 / 32768.0))
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .context("failed to read i16 WAV samples")?,
-    };
+    let frames = interleaved.len() / channel_count;
+    let mut mono = Vec::with_capacity(frames);
 
-    Ok(samples)
+    if channel_count == 2 {
+        for frame in interleaved.chunks_exact(channel_count) {
+            mono.push((frame[0] + frame[1]) * 0.5);
+        }
+        return mono;
+    }
+
+    // ITU-R BS.775 coefficients for surround → mono. Weights follow the
+    // bit-order of `Channels::iter()`. Unknown channels contribute zero.
+    let weights: Vec<f32> = channels.iter().map(bs775_weight).collect();
+    let weight_sum: f32 = weights.iter().sum();
+
+    if weight_sum == 0.0 {
+        // Fallback: no recognised speaker positions — arithmetic mean.
+        for frame in interleaved.chunks_exact(channel_count) {
+            let sum: f32 = frame.iter().sum();
+            mono.push(sum / channel_count as f32);
+        }
+        return mono;
+    }
+
+    for frame in interleaved.chunks_exact(channel_count) {
+        let mixed: f32 = frame.iter().zip(weights.iter()).map(|(s, w)| s * w).sum();
+        mono.push(mixed / weight_sum);
+    }
+    mono
 }
 
-// grcov-excl-start: exclude inline unit tests from production coverage
+fn bs775_weight(channel: Channels) -> f32 {
+    match channel {
+        Channels::FRONT_LEFT | Channels::FRONT_RIGHT => 0.707,
+        Channels::FRONT_CENTRE => 1.0,
+        Channels::LFE1 | Channels::LFE2 => 0.0,
+        Channels::REAR_LEFT | Channels::REAR_RIGHT => 0.5,
+        Channels::SIDE_LEFT | Channels::SIDE_RIGHT => 0.5,
+        Channels::REAR_CENTRE => 0.5,
+        _ => 0.0,
+    }
+}
+
+fn resample_to_target(mono: &[f32], src_rate: u32) -> Result<Vec<f32>> {
+    if src_rate == TARGET_RATE {
+        return Ok(mono.to_vec());
+    }
+
+    let mut resampler = FftFixedIn::<f32>::new(
+        src_rate as usize,
+        TARGET_RATE as usize,
+        RESAMPLE_CHUNK,
+        2,
+        1,
+    )
+    .map_err(|e| AppError::ResampleFailed(e.to_string()))?;
+
+    let mut output: Vec<f32> =
+        Vec::with_capacity(mono.len() * TARGET_RATE as usize / src_rate as usize + RESAMPLE_CHUNK);
+    let mut chunk_out = vec![vec![0.0f32; resampler.output_frames_max()]];
+    let mut cursor = 0;
+
+    while mono.len() - cursor >= RESAMPLE_CHUNK {
+        let chunk_in = [&mono[cursor..cursor + RESAMPLE_CHUNK]];
+        let (_, written) = resampler
+            .process_into_buffer(&chunk_in, &mut chunk_out, None)
+            .map_err(|e| AppError::ResampleFailed(e.to_string()))?;
+        output.extend_from_slice(&chunk_out[0][..written]);
+        cursor += RESAMPLE_CHUNK;
+    }
+
+    // Flush tail — pass None when empty to avoid rubato clearing the padded buffer to len 0.
+    let tail = &mono[cursor..];
+    let tail_arg: Option<&[&[f32]]> = if tail.is_empty() { None } else { Some(&[tail]) };
+    let (_, written) = resampler
+        .process_partial_into_buffer(tail_arg, &mut chunk_out, None)
+        .map_err(|e| AppError::ResampleFailed(e.to_string()))?;
+    output.extend_from_slice(&chunk_out[0][..written]);
+
+    Ok(output)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hound::{SampleFormat, WavSpec, WavWriter};
     use std::path::PathBuf;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn rejects_missing_file() {
@@ -103,7 +238,6 @@ mod tests {
 
     #[test]
     fn rejects_unsupported_extension() {
-        // Create a temp file with unsupported extension to pass the existence check
         let tmp = tempfile::Builder::new().suffix(".xyz").tempfile().unwrap();
         let err = validate(tmp.path()).unwrap_err();
         assert!(err.to_string().contains("Unsupported format"));
@@ -116,9 +250,106 @@ mod tests {
                 .suffix(&format!(".{ext}"))
                 .tempfile()
                 .unwrap();
-            // File exists and has a valid extension — validation should pass
             assert!(validate(tmp.path()).is_ok(), "should accept .{ext}");
         }
     }
+
+    fn write_i16_wav(samples: &[i16], rate: u32, channels: u16) -> NamedTempFile {
+        let tmp = tempfile::Builder::new().suffix(".wav").tempfile().unwrap();
+        let spec = WavSpec {
+            channels,
+            sample_rate: rate,
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
+        };
+        let mut writer = WavWriter::create(tmp.path(), spec).unwrap();
+        for s in samples {
+            writer.write_sample(*s).unwrap();
+        }
+        writer.finalize().unwrap();
+        tmp
+    }
+
+    #[test]
+    fn decodes_16k_mono_wav_as_identity() {
+        let samples: Vec<i16> = (0..1600)
+            .map(|i| ((i as f32).sin() * 16_000.0) as i16)
+            .collect();
+        let tmp = write_i16_wav(&samples, 16_000, 1);
+
+        let out = load(tmp.path()).unwrap();
+        assert_eq!(out.len(), 1600);
+        assert!(out.iter().all(|s| (-1.0..=1.0).contains(s)));
+    }
+
+    #[test]
+    fn resamples_44100_mono_wav_to_16k() {
+        let samples: Vec<i16> = (0..4410)
+            .map(|i| ((i as f32 * 0.1).sin() * 16_000.0) as i16)
+            .collect();
+        let tmp = write_i16_wav(&samples, 44_100, 1);
+
+        let out = load(tmp.path()).unwrap();
+        let expected = 1600;
+        let tolerance = 256;
+        assert!(
+            out.len().abs_diff(expected) <= tolerance,
+            "got {}, expected ~{}",
+            out.len(),
+            expected
+        );
+    }
+
+    #[test]
+    fn downmixes_stereo_wav_to_mono() {
+        // Interleaved L=+16000, R=-16000 → mean 0.
+        let mut samples = Vec::with_capacity(3200);
+        for _ in 0..1600 {
+            samples.push(16_000i16);
+            samples.push(-16_000i16);
+        }
+        let tmp = write_i16_wav(&samples, 16_000, 2);
+
+        let out = load(tmp.path()).unwrap();
+        assert_eq!(out.len(), 1600);
+        let mean: f32 = out.iter().sum::<f32>() / out.len() as f32;
+        assert!(mean.abs() < 1e-4, "mean was {mean}");
+    }
+
+    #[test]
+    fn resamples_chunk_aligned_input() {
+        // 2*RESAMPLE_CHUNK frames at 44.1kHz — tail is empty after the main loop,
+        // exercising the None branch in process_partial_into_buffer.
+        let samples: Vec<i16> = (0..2 * RESAMPLE_CHUNK)
+            .map(|i| ((i as f32 * 0.1).sin() * 16_000.0) as i16)
+            .collect();
+        let tmp = write_i16_wav(&samples, 44_100, 1);
+
+        let out = load(tmp.path()).unwrap();
+        assert!(!out.is_empty(), "chunk-aligned input produced no output");
+    }
+
+    #[test]
+    fn resamples_short_sub_chunk_input() {
+        // 500 frames at 44.1kHz — shorter than RESAMPLE_CHUNK (1024).
+        let samples: Vec<i16> = (0..500)
+            .map(|i| ((i as f32 * 0.1).sin() * 16_000.0) as i16)
+            .collect();
+        let tmp = write_i16_wav(&samples, 44_100, 1);
+
+        let out = load(tmp.path()).unwrap();
+        assert!(!out.is_empty(), "sub-chunk input produced no output");
+    }
+
+    #[test]
+    fn rejects_corrupt_wav() {
+        let tmp = tempfile::Builder::new().suffix(".wav").tempfile().unwrap();
+        std::fs::write(tmp.path(), b"junk").unwrap();
+
+        let err = load(tmp.path()).unwrap_err();
+        assert!(
+            err.to_string().contains("decode") || err.to_string().contains("Failed"),
+            "unexpected error: {err}"
+        );
+    }
 }
-// grcov-excl-stop
