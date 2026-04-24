@@ -26,6 +26,8 @@ fn main() -> Result<()> {
         )
         .init();
 
+    whisper_rs::install_logging_hooks();
+
     let args = Args::parse();
 
     // Audio loading
