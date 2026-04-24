@@ -21,7 +21,6 @@ pub struct TranscribeOptions<'a> {
     pub word_timestamps: bool,
 }
 
-// grcov-excl-start: real whisper model loading requires integration tests or an injected context seam
 pub fn transcribe(samples: &[f32], opts: TranscribeOptions<'_>) -> Result<Vec<Segment>> {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
@@ -93,7 +92,6 @@ pub fn transcribe(samples: &[f32], opts: TranscribeOptions<'_>) -> Result<Vec<Se
 
     Ok(segments)
 }
-// grcov-excl-stop
 
 fn resolve_model_path(model: &str, override_path: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = override_path {
@@ -119,7 +117,6 @@ fn resolve_model_path(model: &str, override_path: Option<&Path>) -> Result<PathB
     Ok(path)
 }
 
-// grcov-excl-start: exclude inline unit tests from production coverage
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,4 +157,3 @@ mod tests {
         );
     }
 }
-// grcov-excl-stop
