@@ -375,6 +375,70 @@ mod tests {
     }
 
     #[test]
+    fn downmixes_7_1_to_mono() {
+        // 7.1 layout adds SIDE_LEFT and SIDE_RIGHT to 5.1.
+        // SL/SR weight = 0.5; all channels at 1.0 → output = weight_sum/weight_sum = 1.0.
+        let channels = Channels::FRONT_LEFT
+            | Channels::FRONT_RIGHT
+            | Channels::FRONT_CENTRE
+            | Channels::LFE1
+            | Channels::REAR_LEFT
+            | Channels::REAR_RIGHT
+            | Channels::SIDE_LEFT
+            | Channels::SIDE_RIGHT;
+        let channel_count = channels.count();
+        let frames = 100;
+        let interleaved = vec![1.0f32; frames * channel_count];
+
+        let mono = downmix_to_mono(&interleaved, channels);
+        assert_eq!(mono.len(), frames);
+        for s in &mono {
+            assert!((s - 1.0).abs() < 1e-5, "expected 1.0, got {s}");
+        }
+    }
+
+    #[test]
+    fn downmixes_rear_centre_to_mono() {
+        // FL, FR, FC, REAR_CENTRE — all at 1.0. REAR_CENTRE weight = 0.5.
+        // weight_sum = 0.707+0.707+1.0+0.5 = 2.914 → output = 2.914/2.914 = 1.0.
+        let channels = Channels::FRONT_LEFT
+            | Channels::FRONT_RIGHT
+            | Channels::FRONT_CENTRE
+            | Channels::REAR_CENTRE;
+        let channel_count = channels.count();
+        let frames = 50;
+        let interleaved = vec![1.0f32; frames * channel_count];
+
+        let mono = downmix_to_mono(&interleaved, channels);
+        assert_eq!(mono.len(), frames);
+        for s in &mono {
+            assert!((s - 1.0).abs() < 1e-5, "expected 1.0, got {s}");
+        }
+    }
+
+    #[test]
+    fn downmixes_all_zero_weight_channels_uses_arithmetic_mean() {
+        // LFE1, LFE2, TOP_CENTRE all have bs775 weight 0 → weight_sum = 0 → arithmetic mean.
+        let channels = Channels::LFE1 | Channels::LFE2 | Channels::TOP_CENTRE;
+        let frames = 10;
+        let interleaved: Vec<f32> = (0..frames).flat_map(|_| [1.0f32, 2.0, 3.0]).collect();
+
+        let mono = downmix_to_mono(&interleaved, channels);
+        assert_eq!(mono.len(), frames);
+        for s in &mono {
+            assert!(
+                (s - 2.0).abs() < 1e-5,
+                "expected arithmetic mean 2.0, got {s}"
+            );
+        }
+    }
+
+    #[test]
+    fn bs775_weight_returns_zero_for_unrecognized_channel() {
+        assert_eq!(bs775_weight(Channels::TOP_CENTRE), 0.0);
+    }
+
+    #[test]
     fn rejects_corrupt_wav() {
         let tmp = tempfile::Builder::new().suffix(".wav").tempfile().unwrap();
         std::fs::write(tmp.path(), b"junk").unwrap();

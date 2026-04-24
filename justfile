@@ -45,21 +45,12 @@ fmt:
 coverage:
     #!/usr/bin/env bash
     set -euo pipefail
-    rm -f coverage-*.profraw
-    CARGO_INCREMENTAL=0 \
-    RUSTFLAGS='-Cinstrument-coverage' \
-    LLVM_PROFILE_FILE='coverage-%p-%m.profraw' \
-    mise exec -- cargo test
     mkdir -p coverage
-    mise exec -- grcov . --binary-path ./target/debug/ -s . -t html,lcov \
-      --branch --ignore-not-existing \
-      --keep-only 'src/*' \
-      --excl-line '^\s*$|^\s*//|#\[derive\(|grcov-excl-line' \
-      --excl-start 'grcov-excl-start' \
-      --excl-stop 'grcov-excl-stop' \
-      -o coverage
+    mise exec -- cargo llvm-cov --no-report
+    mise exec -- cargo llvm-cov report --lcov --output-path coverage/lcov --ignore-filename-regex 'src/main\.rs'
+    mise exec -- cargo llvm-cov report --html --output-dir coverage --ignore-filename-regex 'src/main\.rs'
     lines=$(lcov --summary coverage/lcov --ignore-errors inconsistent,corrupt 2>&1 | grep "lines" | grep -oE '[0-9]+\.[0-9]+' | head -1)
-    awk -v pct="$lines" 'BEGIN { if (pct+0 < 60) { print "Coverage " pct "% is below 60% threshold"; exit 1 } }'
+    awk -v pct="$lines" 'BEGIN { if (pct+0 < 80) { print "Coverage " pct "% is below 80% threshold"; exit 1 } }'
 
 changelog:
     #!/usr/bin/env bash

@@ -17,7 +17,6 @@ use crate::cli::Args;
 use crate::error::AppError;
 use crate::transcribe::TranscribeOptions;
 
-// grcov-excl-start: process entrypoint wiring and terminal dispatch are covered indirectly
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -86,7 +85,6 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-// grcov-excl-stop
 
 fn load_dict(path: &std::path::Path) -> Result<HashMap<String, String>> {
     let content = fs::read_to_string(path).map_err(|e| AppError::InvalidDict(e.to_string()))?;
